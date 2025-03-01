@@ -1,6 +1,6 @@
 use crate::agent_utils::{TraceresultS, Vec};
 use crate::sdl::SDL_event;
-use libc::{RTLD_LAZY, c_int, dl_iterate_phdr, dl_phdr_info, dlopen, dlsym, size_t};
+use libc::{RTLD_LAZY, dlopen, dlsym};
 use std::ffi::CString;
 use std::ffi::c_void;
 use std::mem::transmute;

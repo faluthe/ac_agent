@@ -43,7 +43,7 @@ static INIT: extern "C" fn() = {
             let native_client_addr: u64 = find_base_address();
             println!("native client handle {:?}", native_client_addr);
 
-            let player1 = {
+            let _player1 = {
                 let addr = (native_client_addr + 0x1ab4b8) as *const *const Playerent;
                 &**addr
             };

@@ -1,3 +1,4 @@
+#[derive()]
 pub union SDL_event {
     pub event_type: u32,
     /**< Event type, shared with all events */
