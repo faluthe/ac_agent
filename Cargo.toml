@@ -1,0 +1,11 @@
+[package]
+name = "ac_agent"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+libloading = "0.8"
+libc = "0.2"
