@@ -1,15 +1,24 @@
+use std::f32::consts::PI;
+use std::mem;
+
+use rand::Rng;
+
 use crate::err::Error;
 
+use crate::hooks::TRACE_LINE;
+
+#[derive(Default)]
 #[repr(C)]
-pub struct Vec {
+pub struct AcVec {
     pub x: f32,
     pub y: f32,
     pub z: f32,
 }
 
+#[derive(Default)]
 #[repr(C)]
 pub struct TraceresultS {
-    pub end: Vec,
+    pub end: AcVec,
     pub collided: bool,
 }
 
@@ -30,12 +39,66 @@ pub struct Playerent {
     pub team: i32,
 }
 
+pub fn ray_scan(
+    k: u32,
+    phi_min: f32,
+    phi_max: f32,
+    player1: &Playerent,
+) -> Result<Vec<*const TraceresultS>, Error> {
+    let mut i = 0;
+    let mut rng = rand::thread_rng();
+
+    let ray_magnitude: f32 = 1000.0;
+
+    let mut rays: Vec<*const TraceresultS> = vec![];
+
+    loop {
+        if i == k {
+            break;
+        }
+
+        let rand_yaw = rng.gen_range(phi_min..phi_max) * (PI / 180.0);
+
+        let ray_target: AcVec = AcVec {
+            x: f32::cos(rand_yaw) * ray_magnitude,
+            y: f32::sin(rand_yaw) * ray_magnitude,
+            z: 5.5,
+        };
+
+        let from: AcVec = AcVec {
+            x: player1.x,
+            y: player1.y,
+            z: 5.5,
+        };
+
+        let mut tr = TraceresultS::default();
+
+        match unsafe { TRACE_LINE } {
+            Some(trace) => unsafe {
+                trace(
+                    from,
+                    ray_target,
+                    player1 as *const Playerent as u64,
+                    true,
+                    &mut tr,
+                );
+            },
+            None => return Err(Error::TraceLineError),
+        }
+
+        rays.push(&tr);
+
+        i += 1;
+    }
+    Ok(rays)
+}
+
 pub fn closest_enemy(
     players_list_ptr: *const u64,
     players_length: usize,
     player1: &Playerent,
-) -> Result<u32, Error> {
-    let a: Vec = Vec {
+) -> Result<&Playerent, Error> {
+    let a: AcVec = AcVec {
         x: player1.x,
         y: player1.y,
         z: player1.z,
@@ -48,7 +111,7 @@ pub fn closest_enemy(
     }
 
     let mut min_dist = f32::MAX;
-    let mut closest_enemy_index: u32 = 0; // player1 is 0
+    let mut closest_enemy: Option<&Playerent> = None; // player1 is 0
 
     let mut i: usize = 0;
 
@@ -69,7 +132,7 @@ pub fn closest_enemy(
             continue;
         }
 
-        let b: Vec = Vec {
+        let b: AcVec = AcVec {
             x: player.x,
             y: player.y,
             z: player.z,
@@ -79,9 +142,14 @@ pub fn closest_enemy(
 
         if distance < min_dist {
             min_dist = distance;
-            closest_enemy_index = i as u32 - 1;
+            closest_enemy = Some(player);
         }
     }
 
-    Ok(closest_enemy_index)
+    match closest_enemy {
+        Some(enemy) => Ok(enemy),
+        None => Err(Error::PlayersListError(
+            "failed to locate players list .. no players".to_string(),
+        )),
+    }
 }

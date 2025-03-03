@@ -1,4 +1,4 @@
-use crate::agent_utils::{TraceresultS, Vec};
+use crate::agent_utils::{AcVec, TraceresultS};
 use crate::err::Error;
 use crate::sdl::SDL_event;
 
@@ -8,11 +8,12 @@ use std::mem::transmute;
 
 type SdlPushEventFn = unsafe extern "C" fn(*mut SDL_event) -> i32;
 type SdlGetMouseStateFn = unsafe extern "C" fn(*const i32, *const i32) -> u32;
-type TraceLineFn = unsafe extern "C" fn(Vec, Vec, u64, bool, TraceresultS) -> *mut std::ffi::c_void;
+pub type TraceLineFn =
+    unsafe extern "C" fn(AcVec, AcVec, u64, bool, *const TraceresultS) -> *mut std::ffi::c_void;
 
-static mut SDL_PUSHEVENT: Option<SdlPushEventFn> = None;
-static mut SDL_GETMOUSESTATE: Option<SdlGetMouseStateFn> = None;
-static mut TRACE_LINE: Option<TraceLineFn> = None;
+pub static mut SDL_PUSHEVENT: Option<SdlPushEventFn> = None;
+pub static mut SDL_GETMOUSESTATE: Option<SdlGetMouseStateFn> = None;
+pub static mut TRACE_LINE: Option<TraceLineFn> = None;
 
 static mut CHECK_INPUT_ADDR: Option<*mut u64> = None;
 static mut _HOOK_ORIGINAL_INSTR_ADDR: Option<*mut c_void> = None;
