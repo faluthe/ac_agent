@@ -1,4 +1,6 @@
-use agent_utils::Playerent;
+use std::ffi::CString;
+
+use agent_utils::{Playerent, closest_enemy};
 use err::Error;
 use hooks::{find_base_address, init_hooks};
 
@@ -23,17 +25,31 @@ fn init() -> Result<(), Error> {
     let native_client_addr: u64 = find_base_address()?;
     println!("native client handle {:?}", native_client_addr);
 
-    let _player1 = {
+    let player1 = {
         let addr = (native_client_addr + 0x1ab4b8) as *const *const Playerent;
         unsafe { &**addr }
     };
 
-    let _players_ref = {
+    let players_ptr = {
         let addr = (native_client_addr + 0x1ab4c0) as *const *const u64;
-        unsafe { &**addr }
+        addr
+    };
+
+    if (unsafe { *players_ptr }).is_null() {
+        return Err(Error::PlayersListError(
+            "failed to locate players list .. no players".to_string(),
+        ));
+    }
+
+    let players_length: usize = {
+        let length_ptr = (players_ptr as u64 + 0xC) as *const u32;
+        unsafe { *length_ptr as usize }
     };
 
     init_hooks(native_client_addr)?;
+    println!("players {:?}", players_length);
+    let closest = closest_enemy(unsafe { *players_ptr }, players_length, player1)?;
+    println!("closest enemy index is {:?}", closest);
 
     Ok(())
 }
