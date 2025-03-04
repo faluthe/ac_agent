@@ -1,7 +1,5 @@
-use std::f32::consts::PI;
-use std::mem;
-
 use rand::Rng;
+use std::f32::consts::PI;
 
 use crate::err::Error;
 
@@ -105,9 +103,7 @@ pub fn closest_enemy(
     };
 
     if players_list_ptr.is_null() {
-        return Err(Error::PlayersListError(
-            "failed to locate players list .. no players".to_string(),
-        ));
+        return Err(Error::PlayersListError);
     }
 
     let mut min_dist = f32::MAX;
@@ -148,8 +144,6 @@ pub fn closest_enemy(
 
     match closest_enemy {
         Some(enemy) => Ok(enemy),
-        None => Err(Error::PlayersListError(
-            "failed to locate players list .. no players".to_string(),
-        )),
+        None => Err(Error::PlayersListError),
     }
 }

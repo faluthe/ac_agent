@@ -5,9 +5,13 @@ use crate::sdl::SDL_event;
 use libc::{RTLD_LAZY, c_char, c_int, dl_iterate_phdr, dl_phdr_info, dlopen, dlsym, size_t};
 use std::ffi::c_void;
 use std::mem::transmute;
+use std::ptr::read_unaligned;
 
 type SdlPushEventFn = unsafe extern "C" fn(*mut SDL_event) -> i32;
 type SdlGetMouseStateFn = unsafe extern "C" fn(*const i32, *const i32) -> u32;
+
+type SdlGLSwapWindowInnerFn = unsafe extern "C" fn(*const c_void) -> bool;
+
 pub type TraceLineFn =
     unsafe extern "C" fn(AcVec, AcVec, u64, bool, *const TraceresultS) -> *mut std::ffi::c_void;
 
@@ -16,12 +20,41 @@ pub static mut SDL_GETMOUSESTATE: Option<SdlGetMouseStateFn> = None;
 pub static mut TRACE_LINE: Option<TraceLineFn> = None;
 
 static mut CHECK_INPUT_ADDR: Option<*mut u64> = None;
-static mut _HOOK_ORIGINAL_INSTR_ADDR: Option<*mut c_void> = None;
+static mut HOOK_ORIGINAL_INNER_FUNC: Option<SdlGLSwapWindowInnerFn> = None;
 
 macro_rules! cstr_static {
     ($s:expr) => {
         concat!($s, "\0").as_ptr() as *const c_char
     };
+}
+
+unsafe extern "C" fn hook_func(window: *const c_void) -> bool {
+    println!("hooked !");
+
+    unsafe {
+        match HOOK_ORIGINAL_INNER_FUNC {
+            Some(func) => func(window),
+            None => false,
+        }
+    }
+}
+
+pub fn sdl_gdl_swap_window_hook(sdl_gl_swap_window_handle: *mut c_void) -> Result<(), Error> {
+    unsafe {
+        let wrapper_offset_location: *const u64 =
+            (sdl_gl_swap_window_handle as u64 + 0x4 + 0x2) as *const u64;
+
+        let offset: u32 = read_unaligned(wrapper_offset_location as *const u32);
+
+        let sdl_wrapper_ptr: u64 = sdl_gl_swap_window_handle as u64 + 0xa as u64 + offset as u64;
+
+        let sdl_inner_ref = *(sdl_wrapper_ptr as *const u64);
+
+        HOOK_ORIGINAL_INNER_FUNC = transmute(sdl_inner_ref);
+
+        *(sdl_wrapper_ptr as *mut u64) = hook_func as u64;
+    }
+    Ok(())
 }
 
 pub fn init_hooks(native_client_addr: u64) -> Result<(), Error> {
@@ -31,6 +64,9 @@ pub fn init_hooks(native_client_addr: u64) -> Result<(), Error> {
         if sdl_lib_handle.is_null() {
             return Err(Error::DlOpenError);
         }
+
+        let sdl_gl_swap_window_handle = dlsym(sdl_lib_handle, cstr_static!("SDL_GL_SwapWindow"));
+        sdl_gdl_swap_window_hook(sdl_gl_swap_window_handle)?;
 
         let sdl_push_event_handle = dlsym(sdl_lib_handle, cstr_static!("SDL_PushEvent"));
 

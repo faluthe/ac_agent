@@ -1,4 +1,4 @@
-use agent_utils::{Playerent, TraceresultS, closest_enemy, ray_scan};
+use agent_utils::{Playerent, closest_enemy};
 use err::Error;
 use hooks::{find_base_address, init_hooks};
 
@@ -34,9 +34,7 @@ fn init() -> Result<(), Error> {
     };
 
     if (unsafe { *players_ptr }).is_null() {
-        return Err(Error::PlayersListError(
-            "failed to locate players list .. no players".to_string(),
-        ));
+        return Err(Error::PlayersListError);
     }
 
     let players_length: usize = {
