@@ -5,4 +5,5 @@ pub enum Error {
     FindBaseAddrError,
     PlayersListError,
     TraceLineError,
+    Player1Error,
 }

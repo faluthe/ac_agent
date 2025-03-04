@@ -1,9 +1,12 @@
 use rand::Rng;
 use std::f32::consts::PI;
+use std::ptr;
 
 use crate::err::Error;
 
 use crate::hooks::TRACE_LINE;
+
+pub static mut PLAYER1_REF: Option<&Playerent> = None;
 
 #[derive(Default)]
 #[repr(C)]
@@ -37,18 +40,29 @@ pub struct Playerent {
     pub team: i32,
 }
 
-pub fn ray_scan(
-    k: u32,
-    phi_min: f32,
-    phi_max: f32,
-    player1: &Playerent,
-) -> Result<Vec<*const TraceresultS>, Error> {
+pub fn get_player1_info() -> bool {
+    match unsafe { PLAYER1_REF } {
+        Some(p1) => {
+            println!("health {:?}", p1.health);
+            println!("x {:?} y {:?} z {:?}", p1.x, p1.y, p1.z);
+            true
+        }
+        None => false,
+    }
+}
+
+pub fn ray_scan(k: u32, phi_min: f32, phi_max: f32) -> Result<Vec<*const TraceresultS>, Error> {
     let mut i = 0;
     let mut rng = rand::thread_rng();
 
     let ray_magnitude: f32 = 1000.0;
 
     let mut rays: Vec<*const TraceresultS> = vec![];
+
+    let player1 = match unsafe { PLAYER1_REF } {
+        Some(p1) => p1,
+        None => return Err(Error::Player1Error),
+    };
 
     loop {
         if i == k {

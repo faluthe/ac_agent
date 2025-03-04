@@ -1,4 +1,4 @@
-use agent_utils::{Playerent, closest_enemy};
+use agent_utils::{PLAYER1_REF, Playerent, closest_enemy};
 use err::Error;
 use hooks::{find_base_address, init_hooks};
 
@@ -21,12 +21,13 @@ static INIT: extern "C" fn() = {
 
 fn init() -> Result<(), Error> {
     let native_client_addr: u64 = find_base_address()?;
-    println!("native client handle {:?}", native_client_addr);
 
     let player1 = {
         let addr = (native_client_addr + 0x1ab4b8) as *const *const Playerent;
         unsafe { &**addr }
     };
+
+    unsafe { PLAYER1_REF = Some(player1) };
 
     let players_ptr = {
         let addr = (native_client_addr + 0x1ab4c0) as *const *const u64;
@@ -44,13 +45,9 @@ fn init() -> Result<(), Error> {
 
     init_hooks(native_client_addr)?;
 
-    println!("players {:?}", players_length);
     let closest_enemy = closest_enemy(unsafe { *players_ptr }, players_length, player1)?;
 
     println!("closest enemy index is {:?}", closest_enemy.health);
-
-    //let scan_result = ray_scan(8, 0.0, 360.0, player1)?;
-    //println!("how many rays were drawn: {:?}", scan_result.len());
 
     Ok(())
 }
