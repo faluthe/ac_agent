@@ -1,26 +1,27 @@
 use rand::Rng;
 use std::f32::consts::PI;
-use std::ptr;
 
 use crate::err::Error;
 
-use crate::hooks::TRACE_LINE;
+use crate::hooks::TRACE_LINE_FUNC;
 
 pub static mut PLAYER1_REF: Option<&Playerent> = None;
+pub static mut PLAYER1: Option<u64> = None;
 
-#[derive(Default)]
 #[repr(C)]
+#[derive(Debug, Copy, Clone, Default)]
 pub struct AcVec {
     pub x: f32,
     pub y: f32,
     pub z: f32,
 }
 
-#[derive(Default)]
 #[repr(C)]
+#[derive(Debug, Default)]
 pub struct TraceresultS {
     pub end: AcVec,
     pub collided: bool,
+    _padding: [u8; 3], // Ensure 4-byte alignment
 }
 
 #[repr(C)]
@@ -55,13 +56,18 @@ pub fn ray_scan(k: u32, phi_min: f32, phi_max: f32) -> Result<Vec<*const Tracere
     let mut i = 0;
     let mut rng = rand::thread_rng();
 
-    let ray_magnitude: f32 = 1000.0;
+    let ray_magnitude: f32 = 100.0;
 
     let mut rays: Vec<*const TraceresultS> = vec![];
 
     let player1 = match unsafe { PLAYER1_REF } {
         Some(p1) => p1,
         None => return Err(Error::Player1Error),
+    };
+
+    let traceline = match unsafe { TRACE_LINE_FUNC } {
+        Some(func) => func,
+        None => return Err(Error::TraceLineError),
     };
 
     loop {
@@ -71,31 +77,32 @@ pub fn ray_scan(k: u32, phi_min: f32, phi_max: f32) -> Result<Vec<*const Tracere
 
         let rand_yaw = rng.gen_range(phi_min..phi_max) * (PI / 180.0);
 
-        let ray_target: AcVec = AcVec {
-            x: f32::cos(rand_yaw) * ray_magnitude,
-            y: f32::sin(rand_yaw) * ray_magnitude,
-            z: 5.5,
-        };
-
         let from: AcVec = AcVec {
             x: player1.x,
             y: player1.y,
             z: 5.5,
         };
 
+        let ray_target: AcVec = AcVec {
+            x: from.x + f32::cos(rand_yaw) * ray_magnitude,
+            y: from.y + f32::sin(rand_yaw) * ray_magnitude,
+            z: from.z,
+        };
+
         let mut tr = TraceresultS::default();
 
-        match unsafe { TRACE_LINE } {
-            Some(trace) => unsafe {
-                trace(
-                    from,
-                    ray_target,
-                    player1 as *const Playerent as u64,
-                    true,
-                    &mut tr,
-                );
-            },
-            None => return Err(Error::TraceLineError),
+        unsafe {
+            println!("TRACE_LINE_FUNC: {:X}", traceline as u64);
+            println!("from: {:?}", from);
+            println!("ray_target: {:?}", ray_target);
+
+            match PLAYER1 {
+                Some(p1) => traceline(from, ray_target, p1, true, &mut tr),
+                None => return Err(Error::Player1Error),
+            };
+
+            println!("TraceresultS end : {:?}", tr.end);
+            println!("Collided : {:?}", tr.collided);
         }
 
         rays.push(&tr);

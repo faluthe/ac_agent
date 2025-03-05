@@ -1,22 +1,22 @@
-use crate::agent_utils::{AcVec, TraceresultS, get_player1_info, ray_scan};
+use crate::agent_utils::{AcVec, Playerent, TraceresultS, get_player1_info, ray_scan};
 use crate::err::Error;
 use crate::sdl::SDL_event;
 
 use libc::{RTLD_LAZY, c_char, c_int, dl_iterate_phdr, dl_phdr_info, dlopen, dlsym, size_t};
 use std::ffi::c_void;
 use std::mem::transmute;
-use std::ptr::{self, read_unaligned};
+use std::ptr::read_unaligned;
 
 type SdlPushEventFn = unsafe extern "C" fn(*mut SDL_event) -> i32;
 type SdlGetMouseStateFn = unsafe extern "C" fn(*const i32, *const i32) -> u32;
 type SdlGLSwapWindowInnerFn = unsafe extern "C" fn(*const c_void);
+type TracelineFn = unsafe extern "C" fn(AcVec, AcVec, u64, bool, *const TraceresultS);
 
-pub type TraceLineFn =
-    unsafe extern "C" fn(AcVec, AcVec, u64, bool, *const TraceresultS) -> *mut std::ffi::c_void;
 pub static mut SDL_PUSHEVENT: Option<SdlPushEventFn> = None;
 pub static mut SDL_GETMOUSESTATE: Option<SdlGetMouseStateFn> = None;
-pub static mut TRACE_LINE: Option<TraceLineFn> = None;
+pub static mut TRACE_LINE_FUNC: Option<TracelineFn> = None;
 
+static mut MUTABLE_INNER_FUNC_PTR: Option<*mut unsafe extern "C" fn(*const c_void)> = None;
 static mut HOOK_ORIGINAL_INNER_FUNC: Option<SdlGLSwapWindowInnerFn> = None;
 
 macro_rules! cstr_static {
@@ -30,8 +30,10 @@ unsafe extern "C" fn hook_func(window: *const c_void) {
 
     let result = get_player1_info();
     if !result {
-        println!("unable to dereference player1 its NULLPTR");
+        println!("unable to dereference player1 its a null ptr");
     }
+
+    //ray_scan(2, 0.0, 360.0).expect("ray tracing error");
 
     unsafe {
         match HOOK_ORIGINAL_INNER_FUNC {
@@ -47,14 +49,36 @@ pub fn sdl_gl_swap_window_hook(sdl_gl_swap_window_handle: *mut c_void) -> Result
 
         let offset = read_unaligned(wrapper_offset_location as *const u32);
 
-        let sdl_wrapper_ptr = (sdl_gl_swap_window_handle as u64 + 0xa + offset as u64)
-            as *mut unsafe extern "C" fn(*const c_void);
+        MUTABLE_INNER_FUNC_PTR = Some(
+            (sdl_gl_swap_window_handle as u64 + 0xa + offset as u64)
+                as *mut unsafe extern "C" fn(*const c_void),
+        );
 
-        HOOK_ORIGINAL_INNER_FUNC = Some(*(sdl_wrapper_ptr));
-
-        *(sdl_wrapper_ptr as *mut u64) = hook_func as u64;
+        match MUTABLE_INNER_FUNC_PTR {
+            Some(ptr) => {
+                HOOK_ORIGINAL_INNER_FUNC = Some(*ptr);
+                *(ptr) = hook_func;
+            }
+            None => return Err(Error::SDLHookError),
+        };
     }
     Ok(())
+}
+
+pub fn sdl_gl_swap_window_recover() -> Result<(), Error> {
+    unsafe {
+        match MUTABLE_INNER_FUNC_PTR {
+            Some(ptr) => {
+                *(ptr) = match HOOK_ORIGINAL_INNER_FUNC {
+                    Some(ptr) => ptr,
+                    None => return Err(Error::SDLHookError),
+                }
+            }
+            None => return Err(Error::SDLHookError),
+        };
+        println!("unhooked successfully");
+        Ok(())
+    }
 }
 
 pub fn init_hooks(native_client_addr: u64) -> Result<(), Error> {
@@ -84,7 +108,9 @@ pub fn init_hooks(native_client_addr: u64) -> Result<(), Error> {
 
         SDL_GETMOUSESTATE = transmute(sdl_get_mouse_state_handle);
 
-        TRACE_LINE = transmute((native_client_addr as *mut u64).offset(0x134520));
+        let trace_line_addr = (native_client_addr + 0x134520) as usize;
+        println!("traceline addr {:X}", trace_line_addr);
+        TRACE_LINE_FUNC = Some(transmute::<usize, TracelineFn>(trace_line_addr));
 
         Ok(())
     }
