@@ -51,17 +51,7 @@ pub struct Playerent {
     pub team: i32,
 }
 
-pub fn get_player1_info() -> bool {
-    match unsafe { PLAYER1_REF } {
-        Some(p1) => {
-            println!("health {:?}", p1.health);
-            println!("x {:?} y {:?} z {:?}", p1.o.x, p1.o.y, p1.o.z);
-            true
-        }
-        None => false,
-    }
-}
-
+// for navigation .. creates rays to find the walls, tbf
 pub fn ray_scan(k: u32, phi_min: f32, phi_max: f32) -> Result<Vec<*const TraceresultS>, Error> {
     let mut i = 0;
 

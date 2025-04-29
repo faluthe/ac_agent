@@ -1,4 +1,4 @@
-use crate::agent_utils::{TraceresultS, get_player1_info, ray_scan, world_pos};
+use crate::agent_utils::{TraceresultS, ray_scan, world_pos};
 use crate::err::Error;
 use crate::sdl::SDL_event;
 
@@ -29,11 +29,6 @@ macro_rules! cstr_static {
 }
 
 unsafe extern "C" fn hook_func(window: *const c_void) {
-    let result = get_player1_info();
-    if !result {
-        println!("unable to dereference player1 its a null ptr");
-    }
-
     ray_scan(2, 0.0, 360.0).expect("ray tracing error");
 
     unsafe {
