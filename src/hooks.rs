@@ -1,4 +1,4 @@
-use crate::agent_utils::{AcVec, Playerent, TraceresultS, get_player1_info, ray_scan};
+use crate::agent_utils::{TraceresultS, get_player1_info, ray_scan, world_pos};
 use crate::err::Error;
 use crate::sdl::SDL_event;
 
@@ -10,11 +10,14 @@ use std::ptr::read_unaligned;
 type SdlPushEventFn = unsafe extern "C" fn(*mut SDL_event) -> i32;
 type SdlGetMouseStateFn = unsafe extern "C" fn(*const i32, *const i32) -> u32;
 type SdlGLSwapWindowInnerFn = unsafe extern "C" fn(*const c_void);
-type TracelineFn = unsafe extern "C" fn(AcVec, AcVec, u64, bool, *const TraceresultS);
+
+type TracelineFn = unsafe extern "C" fn(world_pos, world_pos, u64, bool, *const TraceresultS);
+type IsVisibleFn = unsafe extern "C" fn(world_pos, world_pos, u64, bool) -> bool;
 
 pub static mut SDL_PUSHEVENT: Option<SdlPushEventFn> = None;
 pub static mut SDL_GETMOUSESTATE: Option<SdlGetMouseStateFn> = None;
 pub static mut TRACE_LINE_FUNC: Option<TracelineFn> = None;
+pub static mut IS_VISIBLE_FUNC: Option<IsVisibleFn> = None;
 
 static mut MUTABLE_INNER_FUNC_PTR: Option<*mut unsafe extern "C" fn(*const c_void)> = None;
 static mut HOOK_ORIGINAL_INNER_FUNC: Option<SdlGLSwapWindowInnerFn> = None;
@@ -26,14 +29,12 @@ macro_rules! cstr_static {
 }
 
 unsafe extern "C" fn hook_func(window: *const c_void) {
-    println!("hooked !");
-
     let result = get_player1_info();
     if !result {
         println!("unable to dereference player1 its a null ptr");
     }
 
-    //ray_scan(2, 0.0, 360.0).expect("ray tracing error");
+    ray_scan(2, 0.0, 360.0).expect("ray tracing error");
 
     unsafe {
         match HOOK_ORIGINAL_INNER_FUNC {
@@ -109,8 +110,10 @@ pub fn init_hooks(native_client_addr: u64) -> Result<(), Error> {
         SDL_GETMOUSESTATE = transmute(sdl_get_mouse_state_handle);
 
         let trace_line_addr = (native_client_addr + 0x134520) as usize;
-        println!("traceline addr {:X}", trace_line_addr);
         TRACE_LINE_FUNC = Some(transmute::<usize, TracelineFn>(trace_line_addr));
+
+        let is_visible_addr = (native_client_addr + 0x2F288000) as usize;
+        IS_VISIBLE_FUNC = Some(transmute::<usize, IsVisibleFn>(is_visible_addr));
 
         Ok(())
     }
